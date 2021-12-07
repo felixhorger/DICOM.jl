@@ -227,25 +227,30 @@ end
 function read_body!(st, dcm; max_group)
     vrs = dcm.vr
     while true
-        (gelt, data, vr) = read_element(st, dcm)
-        if gelt == empty_tag || gelt[1] > max_group
+        (gelt, data, vr) = read_element(st, dcm; max_group)
+        if gelt == empty_tag
             break
-        else
-            dcm[gelt] = data
-            vrs[gelt] = vr
         end
+		dcm[gelt] = data
+		vrs[gelt] = vr
     end
     return dcm
 end
 
-function read_element(st::IO, dcm::DICOMData)
+function read_element(st::IO, dcm::DICOMData; max_group=0xffff)
     is_explicit = dcm.isexplicit; endian = dcm.endian; aux_vr = dcm.vr;
-    local grp
-    try
-        grp = read_group_tag(st, endian)
-    catch
+	# Read group tag
+	# Bugs me that reading over eof is risked and caught
+	local grp
+	end_of_file = false
+	try
+		grp = read_group_tag(st, endian)
+	catch
+		end_of_file = true # Read failed, eof reached
+	end
+	if end_of_file || grp > max_group
         return (empty_tag, 0, empty_vr)
-    end
+	end
     elt = read_element_tag(st, endian)
     gelt = (grp, elt)
     vr, lentype = determine_vr_and_lentype(st, gelt, is_explicit, aux_vr)
